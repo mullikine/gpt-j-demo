@@ -1,0 +1,216 @@
+* GPT-j Demo
+** Example GPT-j =.prompt=
+#+BEGIN_SRC yaml -n :async :results verbatim code
+  title: gpt-j generate regex
+  include: Generic completion 50 tokens/1
+  prompt-version: 3
+  engine: AIx GPT-J-6B
+  # this flag instructs pen-aix to add a newline before the response
+  # The AIx API appears to remove all beginning whitespace, which may be a bug
+  flags:
+  - aix-begin-newline
+  prompt: |+
+    <text><:pp>
+    regex to match <thing to match> above`(comment-line 1)`.
+  vars:
+  - text
+  - thing to match
+  var-defaults:
+  - "(pen-preceding-text)"
+  end-yas: on
+  # The start will not be trimmed
+  completion: on
+#+END_SRC
+
+*** Generated prompt from above =.prompt=
+
+#+BEGIN_SRC text -n :async :results verbatim code
+  * GPT-j Demo
+  ** Example
+  # regex to match word above.
+#+END_SRC
+
+** Engine
+- http://github.com/semiosis/engines/blob/master/engines/gpt-j-aix.engine
+#+BEGIN_SRC yaml -n :async :results verbatim code
+  engine-title: AIx GPT-J-6B
+  lm-command: "aix-complete.sh"
+  model: GPT-J-6B
+  default-tokens: 512
+  engine-delimiter: "###"
+  approximate-token-char-length: 2.5
+  engine-min-tokens: 1
+  engine-min-generated-tokens: 1
+  engine-max-tokens: 2048
+  engine-whitespace-support: no
+  # This is actually bad behaviour on the SAAS's part
+  engine-strips-gen-starting-whitespace: yes
+  foundation: true
+  libre-dataset: yes
+  libre-model: yes
+  local: no
+  top-k: 10
+#+END_SRC
+
+** Completer
+- http://github.com/semiosis/pen.el/blob/master/scripts/pen-aix.py
+
+*** Test
+- http://github.com/semiosis/pen.el/blob/master/scripts/test-aix
+
+** Example
+#+BEGIN_SRC bash -n :i bash :async :results verbatim code
+  ALSO_EXPORT="" \
+      PEN_PROMPT="Once upon a time there was" \
+      PEN_LM_COMMAND="aix-complete.sh" \
+      PEN_MODEL="GPT-J-6B" \
+      PEN_APPROXIMATE_PROMPT_LENGTH=10 \
+      PEN_ENGINE_MIN_TOKENS=1 \
+      PEN_ENGINE_MAX_TOKENS=2048 \
+      PEN_MIN_TOKENS=0 \
+      PEN_MAX_TOKENS=110 \
+      PEN_REPETITION_PENALTY="" \
+      PEN_LENGTH_PENALTY="" \
+      PEN_MIN_GENERATED_TOKENS=1 \
+      PEN_MAX_GENERATED_TOKENS=100 \
+      PEN_TEMPERATURE="0.8" \
+      PEN_MODE="" \
+      PEN_STOP_SEQUENCE="\n" \
+      PEN_TOP_P="1" \
+      PEN_TOP_K="10" \
+      PEN_FLAGS= \
+      PEN_CACHE= \
+      PEN_USER_AGENT="emacs/pen" \
+      PEN_TRAILING_WHITESPACE="" \
+      PEN_N_COMPLETIONS="1" \
+      PEN_ENGINE_MIN_GENERATED_TOKENS=1 \
+      PEN_ENGINE_MAX_GENERATED_TOKENS=4096 \
+      PEN_COLLECT_FROM_POS=12 \
+      PEN_INJECT_GEN_START="" \
+      lm-complete -d | xa find {} -type f | xa cat
+#+END_SRC
+
+** Completer
+#+BEGIN_SRC python -n :i mypython :async :results verbatim code
+  #!/usr/bin/python3
+  
+  from aixapi import AIxResource
+  import os
+  
+  def hard_bound(x, lower_lim, upper_lim):
+      if (x is not None) and (upper_lim is not None) and x > upper_lim:
+          return upper_lim
+  
+      if (x is not None) and (lower_lim is not None) and x < lower_lim:
+          return lower_lim
+  
+      return x
+  
+  if __name__ == "__main__":
+      # Get your API Key at apps.aixsolutionsgroup.com
+  
+      min_tokens = os.environ.get("PEN_MIN_TOKENS") and int(os.environ.get("PEN_MIN_TOKENS"))
+      max_tokens = os.environ.get("PEN_MAX_TOKENS") and int(os.environ.get("PEN_MAX_TOKENS"))
+      max_generated_tokens = os.environ.get("PEN_MAX_GENERATED_TOKENS") and int(os.environ.get("PEN_MAX_GENERATED_TOKENS"))
+      engine_min_tokens = os.environ.get("PEN_ENGINE_MIN_TOKENS") and int(os.environ.get("PEN_ENGINE_MIN_TOKENS"))
+      engine_max_tokens = os.environ.get("PEN_ENGINE_MAX_TOKENS") and int(os.environ.get("PEN_ENGINE_MAX_TOKENS"))
+      engine_max_generated_tokens = os.environ.get("PEN_ENGINE_MAX_GENERATED_TOKENS") and int(os.environ.get("PEN_ENGINE_MAX_GENERATED_TOKENS"))
+  
+      min_tokens = hard_bound(min_tokens, engine_min_tokens, engine_max_tokens)
+      max_tokens = hard_bound(max_tokens, engine_min_tokens, engine_max_tokens)
+  
+      if engine_max_generated_tokens:
+          max_generated_tokens = hard_bound(max_generated_tokens, 0, engine_max_generated_tokens)
+  
+      if not max_generated_tokens:
+          max_generated_tokens = max_tokens
+  
+      # print(min_tokens)
+      # print(max_tokens)
+      # print(max_generated_tokens)
+      # exit()
+  
+      #  vim +/"top_k: int" "$MYGIT/AIx-Solutions/aix-gpt-api/aixapi/resource.py"
+  
+      final_top_p = os.environ.get("PEN_TOP_P") and float(os.environ.get("PEN_TOP_P"))
+      final_top_k = os.environ.get("PEN_TOP_K") and int(os.environ.get("PEN_TOP_K"))
+  
+      final_temperature = os.environ.get("PEN_TEMPERATURE") and float(os.environ.get("PEN_TEMPERATURE"))
+  
+      final_stop_sequence = os.environ.get("PEN_STOP_SEQUENCE")
+  
+      api_key = os.environ.get("AIX_API_KEY")
+      aix_resource = AIxResource(api_key)
+  
+      model = os.environ.get("PEN_MODEL")
+  
+      # GPT-J-6B is the default and will break when supplied
+      if model == "GPT-J-6B":
+          model = None
+  
+      #  token_min_length=min_tokens,
+  
+      print(
+          str(
+              aix_resource.compose(
+                  os.environ.get("PEN_PROMPT"),
+                  token_min_length = 1,
+                  token_max_length = max_generated_tokens,
+                  top_p = final_top_p,
+                  top_k = final_top_k,
+                  temperature = final_temperature,
+                  stop_sequence = final_stop_sequence,
+                  custom_model_id = model,
+              )
+              .get("data", dict())
+              .get("text")
+          )
+      )
+#+END_SRC
+
+** Basic GPT-j test
+#+BEGIN_SRC python -n :i mypython :async :results verbatim code
+  #!/usr/bin/python3
+  
+  from aixapi import AIxResource
+  import os
+  
+  if __name__ == "__main__":
+      # Get your API Key at apps.aixsolutionsgroup.com
+  
+      api_key = os.environ.get("AIX_API_KEY")
+      aix_resource = AIxResource(api_key)
+  
+      model = "GPT-J-6B"
+  
+      # GPT-J-6B is the default and will break when supplied
+      if model == "GPT-J-6B":
+          model = None
+  
+      #  token_min_length=min_tokens,
+  
+      print(
+          str(
+              aix_resource.compose(
+                  "Once upon a time",
+                  token_min_length = 1,
+                  token_max_length = 5,
+                  top_p = 1.0,
+                  top_k = 10,
+                  temperature = 0.8,
+                  stop_sequence = "###",
+                  custom_model_id = model,
+              )
+              .get("data", dict())
+              .get("text")
+          )
+      )
+#+END_SRC
+
+** Demo
+#+BEGIN_EXPORT html
+<!-- Play on asciinema.com -->
+<!-- <a title="asciinema recording" href="https://asciinema.org/a/SYWJQAtmoYyIWxaCgOYM5M8Od" target="_blank"><img alt="asciinema recording" src="https://asciinema.org/a/SYWJQAtmoYyIWxaCgOYM5M8Od.svg" /></a> -->
+<!-- Play on the blog -->
+<script src="https://asciinema.org/a/SYWJQAtmoYyIWxaCgOYM5M8Od.js" id="asciicast-SYWJQAtmoYyIWxaCgOYM5M8Od" async></script>
+#+END_EXPORT
